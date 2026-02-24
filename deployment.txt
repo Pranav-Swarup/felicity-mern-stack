@@ -1,1 +1,2 @@
-https://felicity-mern-stack.onrender.com
+Frontend URL: https://felicity-pranav.vercel.app
+Backend URL: https://felicity-mern-stack.onrender.com

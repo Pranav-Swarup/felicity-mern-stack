@@ -1,7 +1,9 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import http from "http";
 import { fileURLToPath } from "url";
+import { Server as SocketIO } from "socket.io";
 import { connectDB } from "./config/db.js";
 import env from "./config/env.js";
 
@@ -13,17 +15,15 @@ import organizerRoutes from "./routes/organizer.js";
 import eventsRoutes from "./routes/events.js";
 import registrationRoutes from "./routes/registration.js";
 import passwordResetRoutes from "./routes/passwordReset.js";
+import teamsRoutes from "./routes/teams.js";
+import feedbackRoutes from "./routes/feedback.js";
+import forumRoutes from "./routes/forum.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-app.use(cors({
-  origin: [env.frontendUrl, "http://localhost:5173"],
-  credentials: true,
-}));
-
-
+app.use(cors({ origin: env.frontendUrl, credentials: true }));
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
@@ -36,6 +36,9 @@ app.use("/api/organizer", organizerRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/registrations", registrationRoutes);
 app.use("/api/password-resets", passwordResetRoutes);
+app.use("/api/teams", teamsRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/forum", forumRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", time: new Date().toISOString() });
@@ -50,7 +53,32 @@ app.use((err, req, res, next) => {
 async function start() {
   await connectDB();
 
-  app.listen(env.port, () => {
+  const server = http.createServer(app);
+  const io = new SocketIO(server, {
+    cors: { origin: env.frontendUrl, credentials: true },
+  });
+
+  // forum real-time clients join eventspecific rooms
+  io.on("connection", (socket) => {
+    socket.on("join-event", (eventId) => {
+      socket.join(`event:${eventId}`);
+    });
+
+    socket.on("leave-event", (eventId) => {
+      socket.leave(`event:${eventId}`);
+    });
+
+    socket.on("new-message", (data) => {
+      // broadcast to everyone in the event room
+      io.to(`event:${data.eventId}`).emit("message", data.message);
+    });
+
+    socket.on("delete-message", (data) => {
+      io.to(`event:${data.eventId}`).emit("message-deleted", data.messageId);
+    });
+  });
+
+  server.listen(env.port, () => {
     console.log(`Server running on port ${env.port}`);
   });
 }

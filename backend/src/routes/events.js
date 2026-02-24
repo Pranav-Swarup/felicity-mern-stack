@@ -107,9 +107,11 @@ router.get("/:id", async (req, res) => {
       event,
       isRegistered,
       registration: registration ? {
+        registrationId: registration._id,
         ticketId: registration.ticketId,
         status: registration.status,
         paymentStatus: registration.paymentStatus,
+        paymentProof: registration.paymentProof,
       } : null,
     });
   } catch (err) {

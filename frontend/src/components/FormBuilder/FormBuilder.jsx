@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { HiPlus, HiTrash, HiArrowUp, HiArrowDown } from "react-icons/hi";
 
-// we can't import uuid in the browser, so use a simple fallback
 function makeId() {
   return Math.random().toString(36).slice(2, 10);
 }

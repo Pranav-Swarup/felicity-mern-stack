@@ -15,7 +15,6 @@ export default function OrganizerProfile() {
     contactNumber: "",
     discordWebhookUrl: "",
   });
-  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -41,17 +40,6 @@ export default function OrganizerProfile() {
       toast.error(err.response?.data?.error || "Failed to update");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handlePasswordChange = async (e) => {
-    e.preventDefault();
-    try {
-      await api.put("/organizer/password", passwordForm);
-      toast.success("Password changed");
-      setPasswordForm({ currentPassword: "", newPassword: "" });
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to change password");
     }
   };
 
@@ -112,19 +100,6 @@ export default function OrganizerProfile() {
           Save Changes
         </button>
       </div>
-
-      <div className="divider mt-8">Change Password</div>
-      <form onSubmit={handlePasswordChange} className="space-y-3">
-        <div className="form-control">
-          <label className="label"><span className="label-text">Current Password</span></label>
-          <input type="password" className="input input-bordered w-full" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} required />
-        </div>
-        <div className="form-control">
-          <label className="label"><span className="label-text">New Password</span></label>
-          <input type="password" className="input input-bordered w-full" minLength={6} value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} required />
-        </div>
-        <button type="submit" className="btn btn-outline">Change Password</button>
-      </form>
 
       <div className="divider mt-8">Request Password Reset from Admin</div>
       <PasswordResetSection />

@@ -107,7 +107,7 @@ export default function OrganizerEventDetail() {
 
       {/* tabs */}
       <div role="tablist" className="tabs tabs-bordered mb-6">
-        {["overview", "participants"].map((t) => (
+        {["overview", "participants", ...(event.type === "merchandise" ? ["payments"] : []), "feedback"].map((t) => (
           <button
             key={t}
             role="tab"
@@ -197,6 +197,141 @@ export default function OrganizerEventDetail() {
           )}
         </div>
       )}
+
+      {tab === "payments" && <PaymentsTab eventId={id} />}
+      {tab === "feedback" && <FeedbackTab eventId={id} />}
+    </div>
+  );
+}
+
+function PaymentsTab({ eventId }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    try {
+      const { data } = await api.get(`/organizer/events/${eventId}/payments`);
+      setOrders(data.orders || []);
+    } catch {} finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchOrders(); }, [eventId]);
+
+  const handleAction = async (regId, action) => {
+    try {
+      await api.put(`/organizer/payments/${regId}/${action}`);
+      toast.success(`Payment ${action}d`);
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.error || `Failed to ${action}`);
+    }
+  };
+
+  if (loading) return <span className="loading loading-spinner"></span>;
+
+  return (
+    <div>
+      <p className="text-sm opacity-60 mb-3">{orders.length} order(s)</p>
+      {orders.length === 0 ? (
+        <p className="opacity-50">No orders with payment tracking.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="table table-sm">
+            <thead>
+              <tr>
+                <th>Participant</th>
+                <th>Variant</th>
+                <th>Qty</th>
+                <th>Proof</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((o) => (
+                <tr key={o._id}>
+                  <td>{o.participantId?.firstName} {o.participantId?.lastName}</td>
+                  <td className="text-sm">{o.variantId || "—"}</td>
+                  <td>{o.quantity}</td>
+                  <td>
+                    {o.paymentProof ? (
+                      <a
+                        href={`${import.meta.env.VITE_API_URL.replace("/api", "")}/uploads/${o.paymentProof}`}
+                        target="_blank"
+                        className="link link-primary text-xs"
+                      >
+                        View
+                      </a>
+                    ) : (
+                      <span className="text-xs opacity-50">Not uploaded</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`badge badge-sm ${
+                      o.paymentStatus === "pending" ? "badge-warning" :
+                      o.paymentStatus === "approved" ? "badge-success" : "badge-error"
+                    }`}>{o.paymentStatus}</span>
+                  </td>
+                  <td>
+                    {o.paymentStatus === "pending" && (
+                      <div className="flex gap-1">
+                        <button className="btn btn-xs btn-success" onClick={() => handleAction(o._id, "approve")}>Approve</button>
+                        <button className="btn btn-xs btn-error" onClick={() => handleAction(o._id, "reject")}>Reject</button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeedbackTab({ eventId }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/feedback/${eventId}`)
+      .then(({ data }) => setData(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [eventId]);
+
+  if (loading) return <span className="loading loading-spinner"></span>;
+  if (!data || data.totalRatings === 0) return <p className="opacity-50">No feedback yet.</p>;
+
+  return (
+    <div>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="text-center">
+          <p className="text-4xl font-bold">{data.avgRating}</p>
+          <p className="text-xs opacity-60">{data.totalRatings} rating(s)</p>
+        </div>
+        <div className="flex-1 space-y-1">
+          {[5, 4, 3, 2, 1].map((star) => (
+            <div key={star} className="flex items-center gap-2 text-sm">
+              <span className="w-4">{star}★</span>
+              <progress className="progress progress-primary w-full" value={data.distribution[star]} max={data.totalRatings}></progress>
+              <span className="w-6 text-right opacity-50">{data.distribution[star]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {data.feedbacks.map((f) => (
+          <div key={f._id} className="card bg-base-200 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm font-semibold">{"★".repeat(f.rating)}{"☆".repeat(5 - f.rating)}</span>
+              <span className="text-xs opacity-50">{new Date(f.createdAt).toLocaleDateString()}</span>
+            </div>
+            {f.comment && <p className="text-sm">{f.comment}</p>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

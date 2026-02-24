@@ -22,7 +22,11 @@ export default function ParticipantDashboard() {
 
   const now = new Date();
   const upcoming = registrations.filter(
-    (r) => r.eventId && new Date(r.eventId.endDate) >= now && r.status === "confirmed"
+    (r) => r.eventId &&
+      new Date(r.eventId.endDate) >= now &&
+      r.status === "confirmed" &&
+      r.eventId.status !== "completed" &&
+      r.eventId.status !== "closed"
   );
 
   const filtered = registrations.filter((r) => {

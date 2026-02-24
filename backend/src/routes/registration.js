@@ -3,6 +3,7 @@ import { Event, Registration, Participant } from "../models/index.js";
 import { authenticate } from "../middleware/auth.js";
 import { authorize } from "../middleware/role.js";
 import { generateTicketId } from "../utils/generate.js";
+import { upload } from "../middleware/upload.js";
 import QRCode from "qrcode";
 import { sendTicketEmail } from "../services/email.js";
 
@@ -122,35 +123,51 @@ router.post("/events/:id/purchase", async (req, res) => {
       return res.status(403).json({ error: "You are not eligible" });
     }
 
+    // merch purchases go into pending state — no ticket yet, no stock decrement
+    // stock gets decremented when organizer approves the payment
     const ticketId = generateTicketId();
-    const qrData = await QRCode.toDataURL(ticketId);
 
     const registration = await Registration.create({
       eventId: event._id,
       participantId: req.user.userId,
       ticketId,
-      qrData,
-      status: "confirmed",
+      qrData: "",
+      status: "pending",
       variantId,
       quantity,
-      paymentStatus: "na",
+      paymentStatus: "pending",
     });
 
-    // decrement stock
-    await Event.updateOne(
-      { _id: event._id, "merchDetails.variants.variantId": variantId },
-      { $inc: { "merchDetails.variants.$.stock": -quantity, registrationCount: 1 } }
-    );
-
-    sendTicketEmail(participant, event, ticketId, qrData).catch(() => {});
-
-    res.status(201).json({ registration, ticketId, qrData });
+    res.status(201).json({ registration, message: "Order placed. Please upload payment proof." });
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).json({ error: "Already purchased" });
     }
     console.error("Purchase error:", err);
     res.status(500).json({ error: "Purchase failed" });
+  }
+});
+
+// upload payment proof for a merchandise order
+router.post("/:regId/upload-proof", upload.single("paymentProof"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const reg = await Registration.findOne({
+      _id: req.params.regId,
+      participantId: req.user.userId,
+    });
+    if (!reg) return res.status(404).json({ error: "Order not found" });
+    if (reg.paymentStatus !== "pending") {
+      return res.status(400).json({ error: "Payment proof can only be uploaded for pending orders" });
+    }
+
+    reg.paymentProof = req.file.filename;
+    await reg.save();
+
+    res.json({ registration: reg, message: "Payment proof uploaded" });
+  } catch (err) {
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 

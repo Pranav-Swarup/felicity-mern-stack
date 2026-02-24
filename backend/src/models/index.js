@@ -4,3 +4,6 @@ export { default as Admin } from "./Admin.js";
 export { default as Event } from "./Event.js";
 export { default as Registration } from "./Registration.js";
 export { default as PasswordResetRequest } from "./PasswordResetRequest.js";
+export { default as Team } from "./Team.js";
+export { default as Feedback } from "./Feedback.js";
+export { default as ForumMessage } from "./ForumMessage.js";

@@ -5,104 +5,107 @@ import toast from "react-hot-toast";
 export default function PasswordResets() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState("");
-  const [activeId, setActiveId] = useState(null);
-  const [generatedPw, setGeneratedPw] = useState(null);
+  const [newPassword, setNewPassword] = useState(null);
 
-  const fetch = async () => {
+  const fetchRequests = async () => {
     try {
       const { data } = await api.get("/password-resets/all");
       setRequests(data.requests || []);
-    } catch {} finally { setLoading(false); }
+    } catch {
+      toast.error("Failed to load requests");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { fetchRequests(); }, []);
 
   const handleApprove = async (id) => {
+    const comment = prompt("Comment (optional):");
     try {
-      const { data } = await api.put(`/password-resets/${id}/approve`, { comment });
-      setGeneratedPw({ id, password: data.newPassword, name: data.request.organizerId?.organizerName || "" });
-      toast.success("Approved");
-      setComment("");
-      setActiveId(null);
-      fetch();
+      const { data } = await api.put(`/password-resets/${id}/approve`, { comment: comment || "" });
+      setNewPassword({ id, password: data.newPassword });
+      toast.success("Approved — new password generated");
+      fetchRequests();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed");
+      toast.error(err.response?.data?.error || "Failed to approve");
     }
   };
 
   const handleReject = async (id) => {
+    const comment = prompt("Reason for rejection:");
+    if (comment === null) return;
     try {
       await api.put(`/password-resets/${id}/reject`, { comment });
       toast.success("Rejected");
-      setComment("");
-      setActiveId(null);
-      fetch();
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Failed");
+      fetchRequests();
+    } catch {
+      toast.error("Failed to reject");
     }
   };
 
-  if (loading) return <div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg"></span></div>;
+  if (loading) {
+    return <div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg"></span></div>;
+  }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Password Reset Requests</h1>
 
-      {generatedPw && (
+      {newPassword && (
         <div className="alert alert-success mb-4">
           <div>
-            <p className="font-semibold">New password for {generatedPw.name}:</p>
-            <p className="font-mono">{generatedPw.password}</p>
+            <p className="font-semibold">New password generated (share with the organizer):</p>
+            <p className="font-mono text-sm mt-1"><strong>{newPassword.password}</strong></p>
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => setGeneratedPw(null)}>Dismiss</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setNewPassword(null)}>Dismiss</button>
         </div>
       )}
 
       {requests.length === 0 ? (
-        <p className="opacity-50">No requests.</p>
+        <p className="opacity-50">No password reset requests.</p>
       ) : (
-        <div className="space-y-3">
-          {requests.map((r) => (
-            <div key={r._id} className="card bg-base-200">
-              <div className="card-body py-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold">{r.organizerId?.organizerName || "Unknown"}</p>
-                    <p className="text-xs opacity-50">{r.organizerId?.email} • {new Date(r.createdAt).toLocaleDateString()}</p>
-                    {r.reason && <p className="text-sm mt-1">Reason: {r.reason}</p>}
-                    {r.adminComment && <p className="text-sm opacity-60 mt-1">Comment: {r.adminComment}</p>}
-                  </div>
-                  <span className={`badge badge-sm ${r.status === "pending" ? "badge-warning" : r.status === "approved" ? "badge-success" : "badge-error"}`}>
-                    {r.status}
-                  </span>
-                </div>
-
-                {r.status === "pending" && (
-                  <div className="mt-3">
-                    {activeId === r._id ? (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          className="input input-bordered input-sm w-full"
-                          placeholder="Comment (optional)"
-                          value={comment}
-                          onChange={(e) => setComment(e.target.value)}
-                        />
-                        <div className="flex gap-2">
-                          <button className="btn btn-success btn-sm" onClick={() => handleApprove(r._id)}>Approve</button>
-                          <button className="btn btn-error btn-sm" onClick={() => handleReject(r._id)}>Reject</button>
-                          <button className="btn btn-ghost btn-sm" onClick={() => { setActiveId(null); setComment(""); }}>Cancel</button>
-                        </div>
+        <div className="overflow-x-auto">
+          <table className="table table-sm">
+            <thead>
+              <tr>
+                <th>Club</th>
+                <th>Email</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Comment</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r._id}>
+                  <td className="font-medium">{r.organizerId?.organizerName || "—"}</td>
+                  <td className="text-sm opacity-70">{r.organizerId?.email || "—"}</td>
+                  <td className="text-sm max-w-[200px] truncate">{r.reason || "—"}</td>
+                  <td>
+                    <span className={`badge badge-sm ${
+                      r.status === "pending" ? "badge-warning" :
+                      r.status === "approved" ? "badge-success" : "badge-error"
+                    }`}>
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="text-xs opacity-50">{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td className="text-sm max-w-[200px] truncate">{r.adminComment || "—"}</td>
+                  <td>
+                    {r.status === "pending" && (
+                      <div className="flex gap-1">
+                        <button className="btn btn-xs btn-success" onClick={() => handleApprove(r._id)}>Approve</button>
+                        <button className="btn btn-xs btn-error" onClick={() => handleReject(r._id)}>Reject</button>
                       </div>
-                    ) : (
-                      <button className="btn btn-sm btn-outline" onClick={() => setActiveId(r._id)}>Review</button>
                     )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

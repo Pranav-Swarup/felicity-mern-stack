@@ -312,6 +312,96 @@ router.get("/events/:id/export-csv", async (req, res) => {
   }
 });
 
+// --- Merch Payment Approval Workflow (Tier A) ---
+
+// list pending payments for an event
+router.get("/events/:id/payments", async (req, res) => {
+  try {
+    const event = await Event.findOne({ _id: req.params.id, organizerId: req.user.userId });
+    if (!event) return res.status(404).json({ error: "Event not found" });
+
+    const orders = await Registration.find({
+      eventId: event._id,
+      paymentStatus: { $in: ["pending", "approved", "rejected"] },
+    })
+      .populate("participantId", "firstName lastName email")
+      .sort({ registeredAt: -1 });
+
+    res.json({ orders });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
+
+// approve a payment
+router.put("/payments/:regId/approve", async (req, res) => {
+  try {
+    const reg = await Registration.findById(req.params.regId).populate("eventId");
+    if (!reg) return res.status(404).json({ error: "Registration not found" });
+    if (reg.eventId.organizerId.toString() !== req.user.userId) {
+      return res.status(403).json({ error: "Not your event" });
+    }
+    if (reg.paymentStatus !== "pending") {
+      return res.status(400).json({ error: "Only pending payments can be approved" });
+    }
+
+    // decrement stock now
+    if (reg.variantId) {
+      await Event.updateOne(
+        { _id: reg.eventId._id, "merchDetails.variants.variantId": reg.variantId },
+        { $inc: { "merchDetails.variants.$.stock": -(reg.quantity || 1), registrationCount: 1 } }
+      );
+    }
+
+    // generate ticket
+    const { generateTicketId } = await import("../utils/generate.js");
+    const QRCode = (await import("qrcode")).default;
+    const ticketId = generateTicketId();
+    const qrData = await QRCode.toDataURL(ticketId);
+
+    reg.paymentStatus = "approved";
+    reg.status = "confirmed";
+    reg.ticketId = ticketId;
+    reg.qrData = qrData;
+    await reg.save();
+
+    // send email
+    const { Participant } = await import("../models/index.js");
+    const participant = await Participant.findById(reg.participantId);
+    const { sendTicketEmail } = await import("../services/email.js");
+    if (participant) {
+      sendTicketEmail(participant, reg.eventId, ticketId, qrData).catch(() => {});
+    }
+
+    res.json({ registration: reg });
+  } catch (err) {
+    console.error("Approve payment error:", err);
+    res.status(500).json({ error: "Failed to approve" });
+  }
+});
+
+// reject a payment
+router.put("/payments/:regId/reject", async (req, res) => {
+  try {
+    const reg = await Registration.findById(req.params.regId).populate("eventId");
+    if (!reg) return res.status(404).json({ error: "Registration not found" });
+    if (reg.eventId.organizerId.toString() !== req.user.userId) {
+      return res.status(403).json({ error: "Not your event" });
+    }
+    if (reg.paymentStatus !== "pending") {
+      return res.status(400).json({ error: "Only pending payments can be rejected" });
+    }
+
+    reg.paymentStatus = "rejected";
+    reg.status = "rejected";
+    await reg.save();
+
+    res.json({ registration: reg });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to reject" });
+  }
+});
+
 // simple discord webhook helper
 async function postToDiscord(webhookUrl, event) {
   try {
