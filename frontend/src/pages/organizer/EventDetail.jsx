@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import api from "../../api/client";
 import toast from "react-hot-toast";
 
@@ -94,6 +94,9 @@ export default function OrganizerEventDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          {(event.status === "draft" || event.status === "published") && (
+            <Link to={`/organizer/events/${id}/edit`} className="btn btn-sm btn-ghost">Edit</Link>
+          )}
           {allowed.map((s) => (
             <button key={s} className="btn btn-sm btn-outline" onClick={() => handleStatusChange(s)}>
               {s === "published" ? "Publish" : s.charAt(0).toUpperCase() + s.slice(1)}

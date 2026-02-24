@@ -3,3 +3,4 @@ export { default as Organizer } from "./Organizer.js";
 export { default as Admin } from "./Admin.js";
 export { default as Event } from "./Event.js";
 export { default as Registration } from "./Registration.js";
+export { default as PasswordResetRequest } from "./PasswordResetRequest.js";

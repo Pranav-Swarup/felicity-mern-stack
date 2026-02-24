@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { HiPlus, HiTrash, HiArrowUp, HiArrowDown } from "react-icons/hi";
-//import { v4 as uuid } from "uuid";
 
 // we can't import uuid in the browser, so use a simple fallback
 function makeId() {

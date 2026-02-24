@@ -125,6 +125,65 @@ export default function OrganizerProfile() {
         </div>
         <button type="submit" className="btn btn-outline">Change Password</button>
       </form>
+
+      <div className="divider mt-8">Request Password Reset from Admin</div>
+      <PasswordResetSection />
+    </div>
+  );
+}
+
+function PasswordResetSection() {
+  const [reason, setReason] = useState("");
+  const [requests, setRequests] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.get("/password-resets/my").then(({ data }) => setRequests(data.requests || [])).catch(() => {});
+  }, []);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await api.post("/password-resets/request", { reason });
+      toast.success("Request submitted");
+      setReason("");
+      const { data } = await api.get("/password-resets/my");
+      setRequests(data.requests || []);
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const hasPending = requests.some((r) => r.status === "pending");
+
+  return (
+    <div>
+      {!hasPending && (
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text" className="input input-bordered flex-1" placeholder="Reason for reset (optional)"
+            value={reason} onChange={(e) => setReason(e.target.value)}
+          />
+          <button className={`btn btn-outline ${submitting ? "loading" : ""}`} onClick={handleSubmit} disabled={submitting}>
+            Request Reset
+          </button>
+        </div>
+      )}
+      {requests.length > 0 && (
+        <div className="space-y-2">
+          {requests.slice(0, 5).map((r) => (
+            <div key={r._id} className="text-sm flex items-center gap-2">
+              <span className={`badge badge-sm ${r.status === "pending" ? "badge-warning" : r.status === "approved" ? "badge-success" : "badge-error"}`}>
+                {r.status}
+              </span>
+              <span className="opacity-60">{new Date(r.createdAt).toLocaleDateString()}</span>
+              {r.adminComment && <span className="opacity-50">— {r.adminComment}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
