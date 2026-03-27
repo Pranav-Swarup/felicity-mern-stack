@@ -1,0 +1,10 @@
+kill -9 $(lsof -t -i:5000)
+kill -9 $(lsof -t -i:5173) 
+
+
+mongosh mongodb://localhost:27017/felicity --eval "
+  db.getCollectionNames().forEach(c => db[c].deleteMany({}));
+  print('Purge complete');
+"
+
+node seed.js
